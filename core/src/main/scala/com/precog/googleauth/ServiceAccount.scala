@@ -16,10 +16,14 @@
 
 package com.precog.googleauth
 
-import scala.{Array, Byte}
+import java.lang.RuntimeException
+import java.nio.charset.StandardCharsets.UTF_8
+import java.nio.file.{Files, Paths}
+import scala.{Array, Byte, Left, Right}
 import scala.Predef.String
 
 import argonaut._, Argonaut._
+import cats.effect.Sync
 import cats.implicits._
 
 final case class Url(value: String)
@@ -84,4 +88,46 @@ object ServiceAccount {
           "private_key_id",
           "client_email",
           "type")
+
+  val Redacted = "<REDACTED>"
+  val RedactedUri = Url("REDACTED")
+  val EmptyUri = Url("")
+
+  val SanitizedAuth: ServiceAccount = ServiceAccount(
+    tokenUri = RedactedUri,
+    authProviderCertUrl = RedactedUri,
+    clientCertUrl = RedactedUri,
+    authUri = RedactedUri,
+    privateKey = Redacted,
+    clientId = Redacted,
+    projectId = Redacted,
+    privateKeyId = Redacted,
+    clientEmail = Redacted,
+    accountType = Redacted)
+
+  val EmptyAuth: ServiceAccount = ServiceAccount(
+    tokenUri = EmptyUri,
+    authProviderCertUrl = EmptyUri,
+    clientCertUrl = EmptyUri,
+    authUri = EmptyUri,
+    privateKey = "",
+    clientId = "",
+    projectId = "",
+    privateKeyId = "",
+    clientEmail = "",
+    accountType = "")
+
+  def fromResourceName[F[_]: Sync](authResourceName: String): F[ServiceAccount] =
+    for {
+      authCfgPath <- Sync[F].delay(Paths.get(getClass.getClassLoader.getResource(authResourceName).toURI))
+      authCfgString <- Sync[F].delay(new String(Files.readAllBytes(authCfgPath), UTF_8))
+      sa <-
+        Parse.parse(authCfgString) match {
+          case Left(_) => Sync[F].raiseError[ServiceAccount](new RuntimeException("Malformed auth config"))
+          case Right(json) => json.as[ServiceAccount].fold(
+            (_, _) => Sync[F].raiseError[ServiceAccount](new RuntimeException("Json is not valid ServiceAccount")),
+            _.pure[F])
+        }
+    } yield sa
+
 }

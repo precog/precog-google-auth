@@ -19,26 +19,21 @@ package com.precog.googleauth
 import cats.effect.Sync
 import cats.implicits._
 
-import scala.{
-  Array,
-  Byte
-}
-
 import java.io.ByteArrayInputStream
+import scala.{Array, Byte, Predef}, Predef._
 
-import com.google.auth.{oauth2 => g}
+import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 
-object AccessToken {
-  def token[F[_]: Sync](auth: Array[Byte]): F[g.AccessToken] = {
-    val credentials = Sync[F] delay {
-      val authInputStream = new ByteArrayInputStream(auth)
-      g.GoogleCredentials
-        .fromStream(authInputStream)
-        .createScoped("https://www.googleapis.com/auth/cloud-platform")
+object Credentials {
+  def googleCredentials[F[_]: Sync](auth: Array[Byte], scopes: String*): F[GoogleCredentials] =
+    Sync[F] delay {
+      GoogleCredentials
+        .fromStream(new ByteArrayInputStream(auth))
+        .createScoped(scopes: _*)
     }
 
-    credentials.flatMap(creds =>
+  def accessToken[F[_]: Sync](auth: Array[Byte], scopes: String*): F[AccessToken] = 
+    googleCredentials[F](auth, scopes: _*).flatMap(creds =>
       Sync[F].delay(creds.refreshIfExpired()) >>
         Sync[F].delay(creds.refreshAccessToken()))
-  }
 }
