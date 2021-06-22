@@ -25,6 +25,7 @@ import scala.Predef.String
 import argonaut._, Argonaut._
 import cats.effect.Sync
 import cats.implicits._
+import cats.kernel.Eq
 
 final case class Url(value: String)
 
@@ -44,6 +45,8 @@ final case class ServiceAccount(
 }
 
 object ServiceAccount {
+
+  implicit val eqServiceAccount: Eq[ServiceAccount] = Eq.fromUniversalEquals
 
   implicit val serviceAccountCodecJson: CodecJson[ServiceAccount] =
     casecodec10[String, String, String, String, String, String, String, String, String, String, ServiceAccount](
